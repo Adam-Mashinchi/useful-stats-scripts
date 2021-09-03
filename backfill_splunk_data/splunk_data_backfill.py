@@ -10,7 +10,7 @@ if __name__ == "__main__":
 
     # Only write PR's from _before_ this date!
     utc = pytz.UTC
-    compare_date = utc.localize(date_parser.parse("4/3/21 1:23:45.000 PM"))
+    compare_date = utc.localize(date_parser.parse("9/3/20 9:48:55.000 PM"))
 
     # Setup arguments
     parser = argparse.ArgumentParser()
@@ -37,12 +37,14 @@ if __name__ == "__main__":
     # Define owner/repo names
     owner = args.repo.split('/')[0]
     repo = args.repo.split('/')[-1]
-    url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
 
     # Setup Requests details
     headers = {
         "Authorization": "token {}".format(args.token)
     }
+
+    # Now setup for Pull Requests
+    url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
     payload = {
         "state": "all",
         "direction": "asc",
@@ -71,8 +73,22 @@ if __name__ == "__main__":
             # Compare the updated date, to our global date; if after --> skip
             if date_parser.parse(pull_request['updated_at']) > compare_date:
                 continue
-            # Otherwise, append it for writing to file ...
-            all_pull_requests.append(pull_request)
+            # Otherwise, setup the record ...
+            object_record = {
+                "action": pull_request['state'],
+                "number": pull_request['number'],
+                "pull_request": pull_request,
+                "repository": pull_request['base']['repo'],
+                "organization": pull_request['base']['repo']['owner'],
+                "sender": pull_request['user']
+            }
+            # There are some other fields missing, but this one is critical
+            if pull_request.get('merged_at'):
+                object_record['pull_request']['merged'] = True
+            else:
+                object_record['pull_request']['merged'] = False
+            # ... append it for writing to file ...
+            all_pull_requests.append(object_record)
             # ... and add to valid counter
             valid_counter += 1
         # END for pull_request
@@ -92,7 +108,7 @@ if __name__ == "__main__":
     # Write stored ones to file.
     jsonString = json.dumps(all_pull_requests, indent=4)
     repo_name = args.repo.split('/')[-1]
-    jsonFile = open(f"BACKFILL.{repo_name}.EXPORT.json", "w")
+    jsonFile = open(f"BACKFILL.{repo_name}.json", "w")
     jsonFile.write(jsonString)
     jsonFile.close()
     print("DONE!")
